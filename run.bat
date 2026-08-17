@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ============================================================
-echo TIMDR-Finanse -- pelny przebieg: testy + backtest + wykresy
+echo TIMDR-Finanse -- pelny przebieg: testy + backtesty (BTC+zloto) + wykresy
 echo ============================================================
 
 where python >nul 2>nul
@@ -15,32 +15,48 @@ if errorlevel 1 (
 )
 
 echo.
-echo [1/5] Tworze srodowisko wirtualne (.venv), jesli nie istnieje...
+echo [1/8] Tworze srodowisko wirtualne (.venv), jesli nie istnieje...
 if not exist ".venv" (
     python -m venv .venv
 )
 call .venv\Scripts\activate.bat
 
 echo.
-echo [2/5] Instaluje zaleznosci (numpy, matplotlib, scipy, pytest)...
+echo [2/8] Instaluje zaleznosci (numpy, matplotlib, scipy, pytest)...
 python -m pip install --upgrade pip >nul
 python -m pip install numpy matplotlib scipy pytest -q
 
 echo.
-echo [3/5] Uruchamiam testy jednostkowe...
+echo [3/8] Uruchamiam testy jednostkowe...
 python -m pytest test_timdr_core_finance.py -q
 if errorlevel 1 (
     echo [UWAGA] Niektore testy nie przeszly -- wyniki ponizej moga byc niepewne.
 )
 
 echo.
-echo [4/5] Uruchamiam kauzalny walk-forward backtest (backtest_finance.py)...
+echo [4/8] Backtest BTC/USD (backtest_finance.py)...
 python backtest_finance.py > backtest_output.txt
 type backtest_output.txt
 
 echo.
-echo [5/5] Generuje wykresy i dashboard.html...
+echo [5/8] Dodatkowy test predykcji na BTC (backtest_finance_extended.py)...
+python backtest_finance_extended.py > backtest_extended_output.txt
+type backtest_extended_output.txt
+
+echo.
+echo [6/8] Backtest zlota / PAXG-USD (backtest_gold.py) -- replikacja na innym rynku...
+python backtest_gold.py > backtest_gold_output.txt
+type backtest_gold_output.txt
+
+echo.
+echo [7/8] Dodatkowy test predykcji na zlocie (backtest_gold_extended.py)...
+python backtest_gold_extended.py > backtest_gold_extended_output.txt
+type backtest_gold_extended_output.txt
+
+echo.
+echo [8/8] Generuje wykresy (oba instrumenty) i dashboard.html...
 python make_charts.py
+python make_charts_gold.py
 python build_dashboard.py
 
 echo.

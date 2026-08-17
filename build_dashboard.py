@@ -11,13 +11,15 @@ def img_b64(path):
 
 anom_b64 = img_b64('chart_btc_anomalies.png')
 vol_b64 = img_b64('chart_vol_forecast.png')
+gold_anom_b64 = img_b64('chart_gold_anomalies.png')
+gold_vol_b64 = img_b64('chart_gold_vol_forecast.png')
 
 HTML = f"""<!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TIMDR-Finanse — wyniki testu na realnych danych BTC/USD</title>
+<title>TIMDR-Finanse — wyniki testu na realnych danych (BTC/USD i złoto)</title>
 <style>
   :root {{
     --ink: #1a1a1a; --sub: #555; --muted: #9ca3af;
@@ -64,11 +66,12 @@ HTML = f"""<!DOCTYPE html>
 
 <header>
   <div class="wrap">
-    <h1>TIMDR-Finanse — test na realnych danych BTC/USD</h1>
-    <p>Kauzalny walk-forward backtest sygnałów TRM/FLOW/TWIST/RHYTHM na 720 świecach
-    1h BTC/USD (Kraken, 2026-07-18 – 2026-08-17), oceniony wobec uczciwych baseline'ów
-    (persystencja zmienności, rzut monetą / baza rynkowa). Kod i dane w załączonym
-    archiwum.</p>
+    <h1>TIMDR-Finanse — test na realnych danych rynkowych</h1>
+    <p>Kauzalny walk-forward backtest sygnałów TRM/FLOW/TWIST/RHYTHM na 720-świecowych
+    (1h) próbkach z dwóch niezależnych rynków — BTC/USD i złoto (PAXG/USD) — Kraken,
+    2026-07-18 – 2026-08-17, oceniony wobec uczciwych baseline'ów (persystencja
+    zmienności, rzut monetą / baza rynkowa). Drugi instrument służy do sprawdzenia,
+    czy cokolwiek znalezione na BTC się powtarza. Kod i dane w załączonym archiwum.</p>
   </div>
 </header>
 
@@ -151,6 +154,75 @@ HTML = f"""<!DOCTYPE html>
   </section>
 
   <section>
+    <h2>Dodatek — czy JAKAKOLWIEK predykcja może się tu udać?</h2>
+    <div class="card">
+      <p>Siatka 6 horyzontów (1-24h) x 2 strategie (momentum/reversal), wybór
+      najlepszej kombinacji <b>wyłącznie na 1. połowie danych</b>, ocena na
+      2. połowie (out-of-sample, bez dalszego wyboru — zabezpieczenie przed
+      data-snoopingiem).</p>
+      <table>
+        <tr><th>Horyzont</th><th class="num">Momentum (trening)</th><th class="num">Reversal (trening)</th><th class="num">Baseline (trening)</th></tr>
+        <tr><td>1h</td><td class="num">0.489</td><td class="num">0.511</td><td class="num">0.511</td></tr>
+        <tr><td>2h</td><td class="num">0.504</td><td class="num">0.496</td><td class="num">0.519</td></tr>
+        <tr><td>3h</td><td class="num">0.477</td><td class="num">0.523</td><td class="num">0.508</td></tr>
+        <tr><td>6h</td><td class="num">0.466</td><td class="num">0.534</td><td class="num">0.564</td></tr>
+        <tr><td>12h</td><td class="num">0.462</td><td class="num"><b>0.538</b></td><td class="num">0.591</td></tr>
+        <tr><td>24h</td><td class="num">0.504</td><td class="num">0.496</td><td class="num">0.655</td></tr>
+      </table>
+      <p>Najlepsza na treningu: reversal H=12h. Ta sama kombinacja na danych
+      testowych: <b>trafność 0.583 vs baseline 0.500</b> — formalnie
+      przetrwała out-of-sample. <span class="tag partial">ALE</span> to jeden
+      split na jednym miesiącu jednego instrumentu z nakładającymi się oknami
+      (nie niezależnymi punktami) — najpewniej artefakt jednego trendu
+      spadkowego w 2. połowie próbki, nie realna, powtarzalna przewaga.
+      Wymaga replikacji na innych okresach/instrumentach.</p>
+      <p><b>Mean-reversion po anomaliach</b> (kauzalnie, 21 zdarzeń): po skoku
+      w górę średni zwrot w kolejnych 3-6h robi się ujemny (-0.0016, -0.0007),
+      po skoku w dół — dodatni (+0.0015, +0.0010), zgodnie z hipotezą
+      "overreaction". Kierunek ciekawy, ale n=9-12 zdarzeń to za mało, żeby to
+      odróżnić od szumu.</p>
+      <p><b>Wniosek:</b> najbliżej sygnału predykcyjnego są te dwa wątki, ale
+      żaden nie jest <i>potwierdzony</i> — tylko wart dalszego sprawdzenia na
+      większej, niezależnej próbce.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Replikacja na drugim rynku — złoto (PAXG/USD)</h2>
+    <div class="card">
+      <p>Cały pipeline powtórzony na innej klasie aktywów: <code>PAXG/USD</code>
+      (PAX Gold — token na Krakenie wsparty 1:1 fizycznym złotem, cena śledzi
+      spot LBMA/COMEX), ten sam okres 30 dni, 720 świec 1h.</p>
+      <img src="data:image/png;base64,{gold_anom_b64}" alt="Anomalie na cenie PAXG/USD">
+      <table>
+        <tr><th>Test</th><th class="num">BTC/USD</th><th class="num">PAXG/USD (złoto)</th></tr>
+        <tr><td>Persystencja zmienności (r)</td><td class="num">0.381</td><td class="num"><b>0.446</b></td></tr>
+        <tr><td>TIMDR flow_sigma (r)</td><td class="num">0.019</td><td class="num">0.016</td></tr>
+        <tr><td>Kierunek FLOW 6h (mom/rev)</td><td class="num">0.473 / 0.527</td><td class="num">0.445 / 0.555</td></tr>
+        <tr><td>Baseline kierunku 6h</td><td class="num">0.544</td><td class="num">0.604</td></tr>
+        <tr><td>rhythm(), lag=24h</td><td class="num">0.200</td><td class="num">0.149</td></tr>
+        <tr><td>Najsilniejszy lag autokorelacji</td><td class="num">1h (0.540)</td><td class="num">48h (0.234)</td></tr>
+      </table>
+      <img src="data:image/png;base64,{gold_vol_b64}" alt="Prognoza zmienności PAXG/USD">
+      <p><b>Najważniejszy wynik tej sekcji</b> — replikacja Dodatku A (siatka
+      horyzont × strategia): na BTC reversal H=12h formalnie przetrwał jeden
+      out-of-sample split (0.583 vs baseline 0.500). Ta sama metoda na złocie
+      wybrała inną strategię (momentum, nie reversal) i out-of-sample wyszło
+      <b>0.527 vs baseline 0.606 — przewaga NIE przetrwała.</b> To potwierdza
+      wcześniejsze zastrzeżenie: "sygnał" z BTC był najpewniej artefaktem
+      jednego trendu w jednej próbce (data snooping), nie realną,
+      przenaszalną przewagą. Mean-reversion po anomaliach też nie powtarza
+      wzorca z BTC na złocie.</p>
+      <p><b>Co się jednak powtarza konsekwentnie na obu rynkach:</b>
+      persystencja zmienności jako realny, użyteczny (ale nie-TIMDR-owy)
+      sygnał; brak przewagi kierunkowej z prostego FLOW; <code>anomalies()</code>
+      poprawnie opisuje duże ruchy po fakcie; <code>rhythm()</code> nie
+      znajduje silnego, wiarygodnego cyklu dobowego w żadnym z dwóch
+      aktywów 24/7. To solidniejsza podstawa do wniosków niż jeden instrument.</p>
+    </div>
+  </section>
+
+  <section>
     <h2>Metodologia</h2>
     <div class="card">
       <p>Dane: <code>api.kraken.com/0/public/OHLC?pair=XBTUSD&amp;interval=60</code>,
@@ -159,16 +231,17 @@ HTML = f"""<!DOCTYPE html>
       Współczynnik korekty w Teście 1 dobrany metodą out-of-sample (1. połowa danych
       do dopasowania, 2. połowa do oceny). 24 testy jednostkowe, wszystkie przechodzą
       (<code>test_timdr_core_finance.py</code>).</p>
-      <p>Ograniczenia: jeden miesiąc, jeden instrument; brak danych order booku/tickowych
+      <p>Ograniczenia: jeden miesiąc na instrument; brak danych order booku/tickowych
       (delta/spread to udokumentowane przybliżenia z OHLCV); nakładające się okna
-      walk-forward (nie w pełni niezależne statystycznie). Pełny opis w
-      <code>RAPORT_TIMDR_Finanse.md</code>.</p>
+      walk-forward (nie w pełni niezależne statystycznie); dla złota 54/720 świec
+      ma tylko cenę zamknięcia (open=high=low=close jako przybliżenie — nie wpływa
+      na zwroty/zmienność/kierunek). Pełny opis w <code>RAPORT_TIMDR_Finanse.md</code>.</p>
     </div>
   </section>
 
 </div>
 
-<footer>TIMDR-Finanse · wygenerowano lokalnie przez build_dashboard.py · dane: Kraken (BTC/USD)</footer>
+<footer>TIMDR-Finanse · wygenerowano lokalnie przez build_dashboard.py · dane: Kraken (BTC/USD, PAXG/USD)</footer>
 
 </body>
 </html>

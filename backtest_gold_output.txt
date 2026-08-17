@@ -1,0 +1,50 @@
+Dane: 720 swiec 1h, 719h (30.0 dni), PAXG/USD (token 1:1 wsparty złotem) 3986-4427
+
+=== TEST 1: prognoza zrealizowanej zmiennosci (kolejne 6h) ===
+Punkty walk-forward: 182
+MAE naiwna persystencja (24h): 0.000798
+MAE dlugoterminowa srednia:    0.000900
+Korelacja persystencja vs realna przyszla zmiennosc: r=0.446
+Korelacja flow_sigma vs realna przyszla zmiennosc:   r=0.016
+
+Out-of-sample (alpha=0.00 dobrane na 1. polowie):
+  MAE persystencja (2. polowa, out-of-sample): 0.000701
+  MAE persystencja + korekta flow_sigma:        0.000701
+  Poprawa dzieki flow_sigma: +0.0%
+
+=== TEST 2: prognoza KIERUNKU zwrotu (kolejne 6h) ===
+Trafnosc 'FLOW przewiduje kontynuacje trendu': 0.445
+Trafnosc 'FLOW przewiduje odwrocenie (mean-reversion)': 0.555
+Baseline (zawsze 'w gore', bazowy odsetek wzrostow w probie): 0.604
+(rzut moneta = 0.500; wartosci obu strategii blisko max(baseline_up,1-baseline_up)
+ oznaczaja BRAK realnej przewagi kierunkowej ponad prosta baze)
+
+=== TEST 3a: anomalies() na 1h log-zwrotach (kontrola pozytywna) ===
+Wykryto 61 anomalii na 720 swiec (|MAD-z|>3.0):
+  t= 280.0h  zwrot=+1.54%  z= 13.34  close=4097
+  t= 281.0h  zwrot=-1.42%  z=-12.33  close=4039
+  t= 444.0h  zwrot=+0.96%  z=  8.34  close=4235
+  t= 299.0h  zwrot=+0.86%  z=  7.47  close=4100
+  t= 469.0h  zwrot=-0.78%  z= -6.74  close=4229
+  t= 490.0h  zwrot=+0.73%  z=  6.34  close=4346
+  t= 432.0h  zwrot=+0.72%  z=  6.27  close=4122
+  t=  95.0h  zwrot=+0.70%  z=  6.10  close=4107
+
+=== TEST 3b: rhythm() na wolumenie godzinowym (oczekiwany cykl 24h) ===
+Wykryte 'okresy' (w godzinach) przy progu 0.4: [], score=0.000
+Faktyczna autokorelacja przy lag=24h: 0.149
+Najsilniejsza autokorelacja (lag>0): lag=48h, wartosc=0.234
+Lokalne maksima autokorelacji (lag, wartosc): [(6, np.float64(0.16)), (8, np.float64(0.156)), (12, np.float64(0.176)), (16, np.float64(0.06)), (19, np.float64(0.127)), (24, np.float64(0.149)), (26, np.float64(0.05)), (28, np.float64(0.108)), (32, np.float64(0.082)), (36, np.float64(0.14)), (39, np.float64(0.062)), (44, np.float64(0.107)), (46, np.float64(0.086))]
+Interpretacja: przy standardowym progu (0.4) rhythm() NIE zglasza cyklu
+  dobowego - formalnie 'brak wykrytej periodycznosci'. Przy lag=24h
+  autokorelacja jest slaba (~0.15), a najsilniejsza w calym
+  oknie 1-48h wystepuje przy lag=48h (~0.23) - NIE przy
+  24h, wiec nie ma tu wyraznego, dominujacego cyklu dobowego (w
+  odroznieniu od BTC, gdzie dominowalo lag=1h - tu rozklad jest bardziej
+  plaski, z kilkoma porownywalnymi lokalnymi maksimami). PAXG (token na
+  Krakenie) rowniez handlowany jest 24/7 na globalnym rynku kryptowalut,
+  niezaleznie od godzin otwarcia fizycznego rynku zlota (COMEX/LBMA) -
+  wiec ten sam mechanizm rozmycia cyklu co przy BTC moze tu dzialac.
+  Wniosek: rhythm() dziala poprawnie (nie halucynuje okresowosci), ale
+  przy tym progu i tej probce (30 dni) nie potwierdza uzytecznego cyklu
+  dobowego w wolumenie PAXG.

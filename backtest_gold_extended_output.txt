@@ -1,0 +1,41 @@
+=== A: siatka horyzont x strategia (kierunek zwrotu) ===
+Wybor najlepszej kombinacji WYLACZNIE na 1. polowie danych (trening),
+ocena WYLACZNIE na 2. polowie (out-of-sample, bez dalszego wyboru).
+
+  H= 1h  trafnosc momentum=0.492  reversal=0.508  baseline=0.519
+  H= 2h  trafnosc momentum=0.496  reversal=0.504  baseline=0.508
+  H= 3h  trafnosc momentum=0.485  reversal=0.515  baseline=0.511
+  H= 6h  trafnosc momentum=0.504  reversal=0.496  baseline=0.568
+  H=12h  trafnosc momentum=0.523  reversal=0.477  baseline=0.587
+  H=24h  trafnosc momentum=0.496  reversal=0.504  baseline=0.621
+
+Najlepsza kombinacja na TRENINGU: H=12h, strategia=mom, trafnosc treningowa=0.523
+(To jest wynik PO przeszukaniu 12 kombinacji (6 horyzontow x 2 strategie) -
+ nalezy sie spodziewac, ze czesc z nich 'wygra' czysto przypadkiem.
+ Prawdziwy test jest ponizej: ta SAMA, JUZ WYBRANA kombinacja, bez zadnej
+ dalszej optymalizacji, na danych ktorych nie widziala.)
+
+OUT-OF-SAMPLE (2. polowa, 264 punktow): trafnosc wybranej kombinacji = 0.527, baseline = 0.606
+-> Przewaga NIE przetrwala out-of-sample (typowy objaw przypadkowego trafienia
+   podczas przeszukiwania siatki, tzw. data snooping) - trafnosc treningowa byla
+   szumem, nie realnym sygnalem.
+
+=== B: mean-reversion po anomaliach (kauzalne wykrywanie) ===
+Hipoteza z mikrostruktury rynku: po nietypowo duzym ruchu cena czesciowo
+'oddaje' ruch w kolejnych godzinach (overreaction / krotkoterminowa
+mean-reversion). To NIE jest przeszukiwanie az cos wyjdzie - to jeden,
+z gory postawiony test konkretnej, znanej w literaturze hipotezy.
+
+Wykryto kauzalnie 61 anomalii (burn-in=168h, wiec
+analizowane 552 z 720 swiec).
+
+  H=1h:  po anomalii W GORE (n=36): sredni fwd zwrot=-0.00040  |  po anomalii W DOL (n=25): sredni fwd zwrot=+0.00014  |  bezwarunkowo: +0.00015
+  H=3h:  po anomalii W GORE (n=35): sredni fwd zwrot=+0.00027  |  po anomalii W DOL (n=25): sredni fwd zwrot=+0.00016  |  bezwarunkowo: +0.00043
+  H=6h:  po anomalii W GORE (n=35): sredni fwd zwrot=+0.00088  |  po anomalii W DOL (n=25): sredni fwd zwrot=+0.00214  |  bezwarunkowo: +0.00086
+
+Interpretacja: jesli 'po anomalii w gore' sredni przyszly zwrot jest WYRAZNIE
+bardziej UJEMNY niz bezwarunkowo (i symetrycznie: 'po anomalii w dol' wyrazniej
+DODATNI) - to slad mean-reversion. Jesli podobny do bezwarunkowego albo w ta sama
+strone co sam ruch - brak efektu / kontynuacja. Uwaga: n jest tu male (dziesiatki
+zdarzen), wiec to sygnal jakosciowy, NIE dowod statystyczny - potrzeba wiecej danych
+(dluzszy okres) zeby cokolwiek z tego uznac za wiarygodne.
