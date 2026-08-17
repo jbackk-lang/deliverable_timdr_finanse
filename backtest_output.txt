@@ -1,0 +1,50 @@
+Dane: 720 swiec 1h, 719h (30.0 dni), BTC/USD 62452-66808
+
+=== TEST 1: prognoza zrealizowanej zmiennosci (kolejne 6h) ===
+Punkty walk-forward: 182
+MAE naiwna persystencja (24h): 0.000947
+MAE dlugoterminowa srednia:    0.001062
+Korelacja persystencja vs realna przyszla zmiennosc: r=0.381
+Korelacja flow_sigma vs realna przyszla zmiennosc:   r=0.019
+
+Out-of-sample (alpha=0.00 dobrane na 1. polowie):
+  MAE persystencja (2. polowa, out-of-sample): 0.000711
+  MAE persystencja + korekta flow_sigma:        0.000711
+  Poprawa dzieki flow_sigma: +0.0%
+
+=== TEST 2: prognoza KIERUNKU zwrotu (kolejne 6h) ===
+Trafnosc 'FLOW przewiduje kontynuacje trendu': 0.473
+Trafnosc 'FLOW przewiduje odwrocenie (mean-reversion)': 0.527
+Baseline (zawsze 'w gore', bazowy odsetek wzrostow w probie): 0.544
+(rzut moneta = 0.500; wartosci obu strategii blisko max(baseline_up,1-baseline_up)
+ oznaczaja BRAK realnej przewagi kierunkowej ponad prosta baze)
+
+=== TEST 3a: anomalies() na 1h log-zwrotach (kontrola pozytywna) ===
+Wykryto 38 anomalii na 720 swiec (|MAD-z|>3.0):
+  t=  61.0h  zwrot=+1.83%  z= 10.30  close=65542
+  t= 236.0h  zwrot=-1.55%  z= -8.73  close=63750
+  t= 281.0h  zwrot=-1.42%  z= -8.00  close=63515
+  t=  57.0h  zwrot=+1.08%  z=  6.11  close=64936
+  t= 395.0h  zwrot=+1.00%  z=  5.66  close=63259
+  t= 155.0h  zwrot=-0.99%  z= -5.57  close=64082
+  t= 396.0h  zwrot=+0.99%  z=  5.57  close=63887
+  t= 324.0h  zwrot=-0.95%  z= -5.35  close=62606
+
+=== TEST 3b: rhythm() na wolumenie godzinowym (oczekiwany cykl 24h) ===
+Wykryte 'okresy' (w godzinach) przy progu 0.4: [], score=0.000
+Faktyczna autokorelacja przy lag=24h: 0.200
+Najsilniejsza autokorelacja (lag>0): lag=1h, wartosc=0.540
+Lokalne maksima autokorelacji (lag, wartosc): [(7, np.float64(0.079)), (13, np.float64(-0.03)), (16, np.float64(0.006)), (19, np.float64(0.014)), (24, np.float64(0.2)), (36, np.float64(-0.11)), (47, np.float64(0.132))]
+Interpretacja: przy standardowym progu (0.4) rhythm() NIE zglasza cyklu
+  dobowego - formalnie 'brak wykrytej periodycznosci'. Ale to nie znaczy,
+  ze sygnal jest zerowy: przy lag=24h autokorelacja jest realna, ale slaba
+  (~0.20), i zdecydowanie zdominowana przez znacznie silniejsza
+  autokorelacje przy lag=1h (~0.54 przy lag=1) - czyli
+  wolumen w danej godzinie jest podobny do wolumenu godzine wczesniej
+  (klastrowanie krotkoterminowe) znacznie silniej, niz jest podobny do
+  wolumenu dokladnie 24h wczesniej (cykl dobowy). Prawdopodobne wyjasnienie:
+  BTC handlowany jest 24/7 na calym swiecie, wiec pojedynczy, wyrazny cykl
+  regionalny (np. 'godziny sesji NYSE') jest rozmyty przez nakladajace sie
+  strefy czasowe innych rynkow. Wniosek: rhythm() dziala poprawnie (nie
+  halucynuje okresowosci), ale przy tym progu i tej probce (30 dni) nie
+  potwierdza uzytecznego, dominujacego cyklu dobowego w wolumenie.
