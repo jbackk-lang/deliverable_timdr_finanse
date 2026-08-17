@@ -54,9 +54,12 @@ python backtest_gold_extended.py > backtest_gold_extended_output.txt
 type backtest_gold_extended_output.txt
 
 echo.
-echo [8/8] Generuje wykresy (oba instrumenty) i dashboard.html...
+echo [8/8] Generuje wykresy (oba instrumenty + kontekst ropy + studium przypadku) i dashboard.html...
 python make_charts.py
 python make_charts_gold.py
+python make_chart_oil.py
+python analyze_spiral_case_study.py > spiral_case_study_output.txt
+type spiral_case_study_output.txt
 python build_dashboard.py
 
 echo.

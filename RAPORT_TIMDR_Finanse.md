@@ -378,3 +378,158 @@ wynik z jednego instrumentu.
 Kod: `backtest_gold.py`, `backtest_gold_extended.py`, `make_charts_gold.py`
 — identyczna logika co dla BTC, inne dane wejściowe
 (`data/paxgusd_1h.csv`).
+
+---
+
+## Kontekst makro: czy ropa "kształtuje układ"?
+
+Hipoteza od Jacka: może ropa naftowa stoi za wzorcami widocznymi w BTC/złocie.
+Uczciwie: **nie udało się tego przetestować z tą samą rygorystycznością co
+resztę projektu** — i warto powiedzieć wprost, dlaczego, zamiast to pominąć.
+
+**Co nie zadziałało (techniczne ograniczenia tej sesji, nie brak danych w
+świecie):** Kraken nie ma tokena śledzącego ropę (nie ma odpowiednika PAXG).
+Darmowe API z godzinowymi/dziennymi cenami ropy albo wymagają płatnego
+klucza (Alpha Vantage, OilPriceAPI, Metals-API), albo są zablokowane przez
+robots.txt, albo — w przypadku danych rządowych USA (FRED, EIA) — serwują
+pełną, ~40-letnią historię dzienną w jednym pliku, który jest za duży, żeby
+narzędzie do pobierania stron doniosło go do końca (ucina się w latach
+90.); wersja CSV z FRED z kolei jest serwowana skompresowana (gzip) w
+sposób, którego narzędzie nie potrafi automatycznie rozpakować.
+
+**Co się udało:** dane **miesięczne** WTI z EIA (U.S. Energy Information
+Administration, sierpień 2023 – lipiec 2026, 36 punktów, realne, oficjalne).
+
+![Ropa WTI — kontekst makro](chart_oil_context.png)
+
+Widać wyraźny, duży skok: ropa poszła z **64,51 USD/bbl w lutym 2026 do
+102,13 USD/bbl w maju 2026 (+58%)**, po czym spadła do **80,46 USD/bbl w
+lipcu (-21% względem maja)** — czyli w momencie, gdy zaczynało się nasze
+30-dniowe okno testowe na BTC/złocie (18 lipca – 17 sierpnia), ropa była
+już wyraźnie po szczycie, ale wciąż podwyższona względem poziomów z
+2024-2025.
+
+**Co da się z tego uczciwie powiedzieć, a czego nie:**
+- To **NIE jest** test kauzalny jak reszta tego raportu — jeden punkt na
+  miesiąc to za mało, żeby policzyć cokolwiek na poziomie godzinowym
+  (korelacje, lead-lag, wpływ na anomalie w BTC/złocie).
+- To, co widać, to **zbieżność w czasie, nie dowód przyczynowości**: silny,
+  makro-skalowy szok na rynku ropy (wiosna 2026) w tym samym ogólnym
+  okresie, gdy złoto rosło (patrz Test 1-3 wyżej) pasuje do znanej,
+  ogólnej narracji makroekonomicznej ("szok surowcowy/inflacyjny → popyt
+  na złoto jako zabezpieczenie") — ale to hipoteza z literatury
+  makroekonomicznej, nie coś, co ten projekt zweryfikował na danych.
+- Żeby to porządnie przetestować (kauzalnie, godzinowo, jak resztę tego
+  raportu), potrzeba realnych godzinowych/dziennych danych ropy z tego
+  konkretnego okna — które nie były technicznie osiągalne w tej sesji.
+  Jeśli Jacek ma dostęp do takich danych (broker, terminal, eksport CSV),
+  mogę je przeanalizować bezpośrednio tym samym pipeline'em.
+
+**Wniosek:** ciekawy trop makro, realny i udokumentowany (nie zmyślony), ale
+**nieprzetestowany** na poziomie rygoru reszty tego projektu — traktować
+jako kontekst do dalszego zbadania, nie jako wynik.
+
+Dane: `data/wti_monthly.csv` (EIA, `eia.gov/dnav/pet/hist`). Kod:
+`make_chart_oil.py`.
+
+---
+
+## Studium przypadku: "spirala" w danych — lekcja o ciągłości vs przyczynowości
+
+Podczas przeglądu wykresu `flow_sigma` vs przyszła zmienność (Test 1)
+pojawiła się hipoteza, że punkty układają się w spiralę w czasie —
+sugerująca "przesunięcie fazowe" między zmiennością a przepływem,
+nieuchwytne przez zwykłą korelację r. To dobra okazja, żeby pokazać, jak
+`TIMDR` odróżnia realną strukturę od pozornej — bo odpowiedź jest
+**mieszana**, i to jest pouczające.
+
+**Co się potwierdziło:** trajektoria punktów w prawdziwej kolejności
+czasowej jest rzeczywiście "gładsza" niż losowa — test permutacyjny
+(3000 losowych przetasowań tych samych punktów) pokazuje, że prawdziwa
+chronologia ma krótszą długość toru niż **97,9%** losowych permutacji.
+To realny efekt, nie wyobraźnia.
+
+**Ale — dlaczego to nie jest odkrycie:** ta gładkość ma nudne, już
+udokumentowane wyjaśnienie: (1) `flow_sigma` jest liczony z nakładających
+się okien wygładzania (`trm(k=5)` + `flow(window=5)`), więc sąsiednie w
+czasie punkty z konstrukcji dzielą większość tych samych danych źródłowych
+— to artefakt metody, nie odkryta struktura rynku; (2) zrealizowana
+zmienność ma już udokumentowane klastrowanie (Test 1: r=0,38 dla zwykłej
+persystencji) — fale spokoju/burzy też generują gładkość. Żadne z tych
+dwóch zjawisk nie jest nowe ani tajemnicze.
+
+**Test na "przesunięcie fazowe":** przeskanowano korelację `flow_sigma`
+vs przyszła zmienność przy przesunięciach od -20 do +20 kroków (-60h do
++60h). Najlepszy wynik ze WSZYSTKICH 41 przesunięć: r=-0,296 przy
+lag=+4 kroki (+12h) — ale to przesunięcie jest **nieprzyczynowe**: użycie
+`flow_sigma` policzonego na danych aż do D+12h do "wyjaśnienia" zmienności
+z okna [D, D+6h] wymaga już znać dane 6h w przyszłość względem końca
+okna, które rzekomo się przewiduje. To nie prognoza — to tłumaczenie
+przeszłości danymi z przyszłości (dokładnie błąd typu look-ahead, przed
+którym ostrzega każdy backtest w tym projekcie).
+
+Po ograniczeniu skanu wyłącznie do przesunięć **przyczynowych**
+(`flow_sigma` nie później niż moment prognozy): najlepszy na treningu
+lag=-5 kroków (-15h) dał r_train=-0,231 — wygląda obiecująco. Ale
+zwalidowany out-of-sample (dokładnie ta sama metoda co w Dodatku A):
+**r_test=-0,043 — sygnał znika.** To ten sam wzorzec co reversal H=12h na
+BTC, który nie przetrwał replikacji na złocie: coś, co wygląda dobrze na
+treningu, ginie w konfrontacji z niezależnymi danymi.
+
+**Wniosek:** obserwacja "trajektoria jest gładsza niż przypadek" była
+trafna i warta sprawdzenia — ale wynikała z już znanych, nudnych przyczyn
+(konstrukcja wygładzania + klastrowanie zmienności), nie z nowego zjawiska.
+Pozorne "przesunięcie fazowe" istniało tylko wtedy, gdy dopuszczono
+nieprzyczynowe zaglądanie w przyszłość; jedyna przyczynowa, sprawdzalna w
+czasie rzeczywistym wersja tego sygnału nie przetrwała out-of-sample.
+Dokładnie to jest sedno metodologii tego projektu: każda "struktura"
+musi przejść test kauzalnego, out-of-sample backtestu, zanim zostanie
+uznana za coś więcej niż ciekawy kształt na wykresie.
+
+---
+
+## Dodatek metodologiczny: jak odróżnić strukturę od artefaktu w TIMDR
+
+Krótka checklista wypracowana podczas studium przypadku "spirali" wyżej —
+przydatna przy każdej przyszłej "obiecującej" obserwacji w projektach
+TIMDR, nie tylko w tym.
+
+**1. TIMDR ma tylko sześć reguł, wszystkie policzalne:**
+`anomalies()`, `defekt()`, `rezonans()`, `rhythm()`, `flow()`, `twist()`.
+Nic poza tym nie jest "regułą TIMDR" — jeśli obserwacja nie da się
+przypisać do jednej z tych sześciu funkcji (albo prostej ich kombinacji),
+to nie jest własnością TIMDR, tylko wrażeniem z wykresu.
+
+**2. Stały pipeline obliczeniowy:**
+`TRM` (wygładzenie) → `FLOW` (gradient) → `TWIST` (rotacja gradientu) →
+`RHYTHM` (autokorelacja) → `ANOMALIA` / `DEFEKT` / `REZONANS` (lokalne
+odchylenia). Żadna inna "kolejność" ani "ślizganie się" nie istnieje w
+kodzie — jeśli ktoś proponuje inną sekwencję jako źródło sygnału, to
+propozycja spoza tego, co TIMDR faktycznie liczy, i wymaga osobnej,
+nowej definicji matematycznej, nie interpretacji istniejącego kodu.
+
+**3. Jedyne metryki, które mają sens przy pytaniu "czy to się układa":**
+- **Długość trajektorii** (ciągłość w czasie): `L = Σ‖x(t+1) − x(t)‖`
+- **Test permutacyjny**: `p = Pr(L_perm < L_real)` — czy prawdziwa
+  chronologia jest smuklejsza/gładsza niż losowa kolejność tych samych
+  punktów
+- **Korelacja kauzalna**: `r = corr(flow_sigma(t), zmienność(t+Δ))`,
+  liczona wyłącznie dla Δ możliwych do użycia w czasie rzeczywistym
+- **Stabilność out-of-sample**: `r_trening` vs `r_test` na niezależnej
+  połowie danych
+
+**4. Reguła decyzyjna:** struktura geometryczna (potwierdzona np. testem
+permutacyjnym) i użyteczność predykcyjna (potwierdzona out-of-sample) to
+**dwa oddzielne fakty**. Jeśli pierwsze wychodzi "tak", a drugie "nie" —
+wniosek brzmi "TIMDR poprawnie opisuje kształt danych, ale kształt nie
+jest sygnałem predykcyjnym", nie "trzeba poszukać sygnału gdzie indziej w
+tym samym kształcie". Każda kolejna, coraz bardziej opisowa/metaforyczna
+wersja tej samej odrzuconej hipotezy ("kolejność", "ślizganie się",
+"rezonans fazowy") powinna być domyślnie traktowana jako próba ratowania
+hipotezy narracją zamiast dowodem — i wymaga własnej, osobnej,
+matematycznie sformułowanej definicji, zanim zostanie przetestowana.
+
+**Zastosowanie w tym raporcie:** dokładnie ta checklista rozstrzygnęła
+studium przypadku wyżej — test permutacyjny: 97,9% percentyl (struktura
+realna); korelacja kauzalna out-of-sample: r=-0,043 (brak predykcji).
+Wniosek zamknięty, niezależnie od dalszej narracji.

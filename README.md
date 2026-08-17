@@ -71,6 +71,24 @@ drugim końcu zjada każdy łatwy wzorzec).
 Czyli: gotowej strategii tu nie ma, i drugi instrument to potwierdził —
 "ciekawy trop" z BTC nie przeżył konfrontacji z niezależnymi danymi.
 
+## A ropa?
+
+Pytanie: może to ropa kształtuje układ. Sprawdziłem, ale tylko częściowo —
+godzinowych/dziennych danych ropy nie dało się technicznie ściągnąć w tej
+sesji (Kraken ich nie ma, darmowe API wymagają płatnego klucza albo są
+zablokowane, a rządowe archiwa USA — FRED/EIA — są za duże/za dziwnie
+skompresowane dla narzędzia do pobierania stron). Udało się za to wyciągnąć
+realne dane **miesięczne** z EIA (`chart_oil_context.png`,
+`data/wti_monthly.csv`): ropa WTI skoczyła z 64,51 USD/bbl (luty 2026) do
+102,13 USD/bbl (maj 2026, +58%), potem spadła do 80,46 USD/bbl (lipiec) —
+czyli była podwyższona, ale już po szczycie, dokładnie gdy zaczynało się
+nasze okno testowe na BTC/złocie. To ciekawa zbieżność w czasie z rajdem
+złota, ale **nie jest to test kauzalny** jak reszta tego projektu — jeden
+punkt na miesiąc to za mało, żeby policzyć cokolwiek na poziomie
+godzinowym. Szczegóły i zastrzeżenia w `RAPORT_TIMDR_Finanse.md`. Jeśli
+masz gdzieś dostęp do godzinowych/dziennych danych ropy z tego okresu, wrzuć
+je, a przepuszczę je przez ten sam pipeline.
+
 ## Jak odpalić
 
 Podwójny klik na `run.bat` (Windows). Zrobi wszystko sam: venv, zależności,

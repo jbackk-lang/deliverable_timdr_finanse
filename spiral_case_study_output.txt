@@ -1,0 +1,17 @@
+=== TEST A: dlugosc trajektorii (ciaglosc w czasie) ===
+Prawdziwa chronologia: dlugosc toru = 0.125852
+3000 losowych permutacji: srednia=0.127626, std=0.000874
+Prawdziwy wynik na percentylu 2.1 (0=najgladszy ze wszystkich, 50=typowy, 100=najbardziej chaotyczny)
+-> Trajektoria JEST gladsza niz losowa (realny efekt) - ale patrz
+   TEST C nizej, dlaczego to nie oznacza uzytecznego sygnalu.
+
+=== TEST B: najlepszy lag ze WSZYSTKICH przesuniec (-20..+20) ===
+Najlepszy |r| ze wszystkich 41 przesuniec: r=-0.296 przy lag=4 krokow (12h) -- NIEKAUZALNY (look-ahead!)
+
+=== TEST C: najlepszy KAUZALNY lag, walidacja out-of-sample ===
+Najlepszy kauzalny lag na TRENINGU: lag=-5 (-15h), r_train=-0.231
+Ten sam lag na TEScie (out-of-sample): r_test=-0.043
+-> Sygnal w duzej mierze ZNIKA out-of-sample (typowy objaw
+   data-snoopingu, jak reversal H=12h w Dodatku A).
+
+saved chart_flow_sigma_trajectory.png

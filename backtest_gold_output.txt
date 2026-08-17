@@ -1,4 +1,4 @@
-Dane: 720 swiec 1h, 719h (30.0 dni), PAXG/USD (token 1:1 wsparty z≈Çotem) 3986-4427
+Dane: 720 swiec 1h, 719h (30.0 dni), PAXG/USD (token 1:1 wsparty z≥otem) 3986-4427
 
 === TEST 1: prognoza zrealizowanej zmiennosci (kolejne 6h) ===
 Punkty walk-forward: 182

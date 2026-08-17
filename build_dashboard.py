@@ -13,6 +13,7 @@ anom_b64 = img_b64('chart_btc_anomalies.png')
 vol_b64 = img_b64('chart_vol_forecast.png')
 gold_anom_b64 = img_b64('chart_gold_anomalies.png')
 gold_vol_b64 = img_b64('chart_gold_vol_forecast.png')
+oil_b64 = img_b64('chart_oil_context.png')
 
 HTML = f"""<!DOCTYPE html>
 <html lang="pl">
@@ -219,6 +220,32 @@ HTML = f"""<!DOCTYPE html>
       poprawnie opisuje duże ruchy po fakcie; <code>rhythm()</code> nie
       znajduje silnego, wiarygodnego cyklu dobowego w żadnym z dwóch
       aktywów 24/7. To solidniejsza podstawa do wniosków niż jeden instrument.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Kontekst makro — czy ropa "kształtuje układ"?</h2>
+    <div class="card">
+      <p>Hipoteza: może ropa naftowa stoi za wzorcami widocznymi w
+      BTC/złocie. Uczciwie: <b>nie udało się tego przetestować z tą samą
+      rygorystycznością</b> co reszta projektu — godzinowe/dzienne dane
+      ropy nie były technicznie osiągalne w tej sesji (Kraken nie ma
+      tokena ropy; darmowe API wymagają klucza albo są blokowane; rządowe
+      archiwa USA FRED/EIA są za duże lub serwowane w formacie, którego
+      narzędzie nie potrafiło rozpakować). Udało się wyciągnąć realne dane
+      <b>miesięczne</b> z EIA:</p>
+      <img src="data:image/png;base64,{oil_b64}" alt="Ropa WTI — kontekst makro">
+      <p>Ropa WTI skoczyła z <b>64,51 USD/bbl (luty 2026) do 102,13 USD/bbl
+      (maj 2026, +58%)</b>, potem spadła do <b>80,46 USD/bbl (lipiec)</b> —
+      podwyższona, ale już po szczycie, dokładnie gdy zaczynało się nasze
+      okno testowe na BTC/złocie. To ciekawa zbieżność w czasie ze wzrostem
+      złota w tym samym okresie (pasuje do znanej makro-narracji "szok
+      surowcowy → popyt na złoto jako zabezpieczenie") — ale
+      <span class="tag partial">TO NIE JEST TEST KAUZALNY</span>, tylko
+      obserwacja zbieżności: jeden punkt na miesiąc to za mało, żeby
+      policzyć korelację/lead-lag na poziomie godzinowym, jak w resztę
+      testów w tym raporcie. Traktować jako kontekst do dalszego zbadania,
+      nie jako wynik.</p>
     </div>
   </section>
 
