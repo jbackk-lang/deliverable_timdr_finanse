@@ -175,19 +175,44 @@ class TIMDR_FinanceCore:
         return idx, z, mad * factor
 
     # ------------------------------------------------------------------
-    # DEFEKT — nagly skok miedzy kolejnymi odczytami, prog z lokalnego
-    # rozrzutu (p90-p10), z ta sama podloga co anomalie() dla parametrow
-    # zero-inflated (np. delta_proxy na plytkim rynku)
+    # DEFEKT — nagly skok miedzy kolejnymi odczytami, prog z rozrzutu
+    # (p90-p10) SAMYCH ROZNIC dzien-do-dnia, NIE rozrzutu poziomow ceny.
+    #
+    # POPRAWKA (znaleziona empirycznie przy tescie recovery po anomalii,
+    # ten sam blad juz raz znaleziony i naprawiony w bliznaczym module
+    # analizator-gieldowy-v3/timdr_core_finance.py::defect(), ale nigdy
+    # nie przeniesiony tutaj): oryginalny kod liczyl spread z percentyli
+    # POZIOMOW ceny (s), nie z diffs. Dla trendujacego random walk (ceny
+    # akcji/walut) rozrzut poziomow w krotkim oknie jest tego samego
+    # rzedu wielkosci co pojedyncza roznica dzien-do-dnia - prog wychodzil
+    # wiec za czuly. Zmierzone empirycznie NA TYM module PRZED poprawka:
+    # 16.3% falszywych flag na CZYSTYM random walk bez zadnej anomalii
+    # (strumieniowe okno W=30, 10 ziaren) - niemal identyczne do ~20%
+    # udokumentowanych w analizator-gieldowy-v3 dla tego samego bledu.
+    #
+    # DRUGA POLOWA POPRAWKI (znaleziona dopiero PO pierwszej probie -
+    # samo przelaczenie spreadu na diffs BEZ podniesienia factor dalo
+    # 49.4% falszywych flag, GORZEJ niz przed poprawka - rozrzut samych
+    # roznic jest dużo MNIEJSZY niz rozrzut poziomow, wiec stary
+    # mnoznik factor=0.3 stal sie za maly): domyslny `factor` podniesiony
+    # 0.3 -> 3.0, dokladnie jak w juz naprawionym analizator-gieldowy-v3
+    # (jump_factor domyslnie 3.0 tam, ten sam rzad wielkosci co MAD-z=3
+    # w anomalies() - "typowa zmiennosc razy kilka" = prawdziwy wyjatek).
+    # Zmierzone PO obu poprawkach razem: 0.0% falszywych flag na czystym
+    # random walk (10 ziaren, W=30) - patrz test_recovery_defekt.py.
     # ------------------------------------------------------------------
     @staticmethod
-    def defekt(s, factor=0.3, floor_frac=0.05):
+    def defekt(s, factor=3.0, floor_frac=0.05):
         s = np.asarray(s, float)
         n = len(s)
         if n < 2:
             return np.array([], dtype=int), np.array([])
         diffs = np.diff(s)
-        p10, p90 = np.percentile(s, 10), np.percentile(s, 90)
-        spread = p90 - p10
+        if len(diffs) >= 2:
+            p10, p90 = np.percentile(diffs, 10), np.percentile(diffs, 90)
+            spread = p90 - p10
+        else:
+            spread = 0.0
         if spread <= 0 or not np.isfinite(spread):
             spread = max(abs(np.median(s)) * floor_frac, 1e-9)
         thr = factor * spread
@@ -292,7 +317,7 @@ class TIMDRFinanceFusion:
         self.core = TIMDR_FinanceCore()
 
     def analyze(self, t, open_, high, low, close, volume,
-                anomaly_factor=3.0, twist_threshold=0.4, defekt_factor=0.3,
+                anomaly_factor=3.0, twist_threshold=0.4, defekt_factor=3.0,
                 rezonans_min=3):
         core = self.core
         t = np.asarray(t, float)

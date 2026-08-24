@@ -31,7 +31,11 @@ drugim końcu zjada każdy łatwy wzorzec).
   port 1:1 z `jbackk-lang/universal-state-analyzer`, `analizator-gieldowy-v3`
   i `TIMDR-Grid-Monitor`, gdzie ta sama funkcja jest już zweryfikowana i
   udokumentowana pełną historią znalezionych i naprawionych błędów).
-  `pytest -q` (41/41 łącznie z powyższym).
+- `test_selfbaseline_recovery.py` — 3 testy: czy `anomalies()`/`defekt()`
+  wracają do normy po ustaniu anomalii, zamiast trwale flagować kolejne
+  normalne próbki. Znaleziono i naprawiono tu realny błąd — patrz sekcja
+  "Naprawiony błąd: defekt() na trendującym random walk" niżej.
+  `pytest -q` (44/44 łącznie z powyższym).
 - `backtest_finance.py` / `backtest_gold.py` — główny backtest (BTC / złoto):
   prognoza zmienności (6h), prognoza kierunku (6h), kontrole
   `anomalies()`/`rhythm()`. Identyczna logika, inne dane wejściowe.
@@ -55,6 +59,38 @@ drugim końcu zjada każdy łatwy wzorzec).
   2026-07-18 – 2026-08-17. Uwaga: w danych złota 54/720 świec ma tylko
   cenę zamknięcia (open=high=low=close jako przybliżenie) — nie wpływa na
   zwroty/zmienność/kierunek, zeruje tylko spread_proxy dla tych godzin.
+
+## Naprawiony błąd: `defekt()` na trendującym random walk
+
+Znaleziony przy pisaniu `test_selfbaseline_recovery.py` (pytanie: czy
+`anomalies()`/`defekt()` wracają do normy po ustaniu anomalii, zamiast
+trwale flagować kolejne normalne próbki — ten sam test co w
+`TIMDR-Crypto-Graph`/`universal-state-analyzer`).
+
+`defekt()` liczył próg z rozrzutu (p90-p10) **poziomów ceny**, nie z
+rozrzutu **samych różnic** dzień-do-dnia. Dla trendującego random walk
+(ceny akcji/walut) rozrzut poziomów w krótkim oknie jest tego samego
+rzędu wielkości co pojedyncza różnica — próg wychodził więc dramatycznie
+za czuły. To dokładnie ten sam błąd, który już raz znaleziono i naprawiono
+w bliźniaczym module `analizator-gieldowy-v3/timdr_core_finance.py::defect()`
+(patrz jego README) — ale poprawka nigdy nie została przeniesiona do TEJ
+(klasowej) wersji.
+
+Zmierzone empirycznie na tym module, tryb strumieniowy (trailing window
+W=30, 10 ziaren), **bez żadnej wstrzykniętej anomalii**:
+
+| wersja | falszywe flagi na czystym random walk |
+|---|---|
+| przed poprawką | 16.3% |
+| po samej zmianie spread→diffs (bez podniesienia progu) | 49.4% (**gorzej**) |
+| po pełnej poprawce (spread z diffs + `factor` 0.3→3.0) | 0.0% |
+
+Druga linijka tabeli to prawdziwa pułapka przy tej naprawie: rozrzut
+samych różnic jest dużo mniejszy niż rozrzut poziomów, więc stary mnożnik
+`factor=0.3` (dobrany pod starą, szerszą skalę) stał się za mały —
+zmiana samego źródła rozrzutu bez podniesienia progu pogorszyła sprawę.
+Poprawka kompletna dopiero z obiema zmianami razem, dokładnie jak w
+`analizator-gieldowy-v3` (`jump_factor` domyślnie tam też 3.0).
 
 ## Wyniki, bez owijania w bawełnę
 
