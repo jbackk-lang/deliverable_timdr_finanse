@@ -14,11 +14,24 @@ drugim końcu zjada każdy łatwy wzorzec).
 ## Pliki
 
 - `timdr_core_finance.py` — sam rdzeń. `TIMDR_FinanceCore` (trm/flow/twist/
-  anomalie/defekt/rhythm/rezonans) + `TIMDRFinanceFusion` (pełny pipeline
-  z surowych OHLCV). Uwaga na górze pliku: `delta_proxy`/`spread_proxy` to
-  przybliżenia z samych świec, nie prawdziwy order flow — nie ma tu
-  orderbooka.
-- `test_timdr_core_finance.py` — 24 testy jednostkowe. `pytest -q`.
+  anomalie/defekt/rhythm/rezonans/ringdown_events) + `TIMDRFinanceFusion`
+  (pełny pipeline z surowych OHLCV). Uwaga na górze pliku: `delta_proxy`/
+  `spread_proxy` to przybliżenia z samych świec, nie prawdziwy order flow
+  — nie ma tu orderbooka.
+- `ringdown.py` — `ringdown_resonance()`: rezonans w SENSIE FIZYCZNYM (nie
+  licznik koincydencji jak `rezonans()` wyżej) — po skoku ceny (`defekt()`),
+  czy powrót w stronę poziomu sprzed skoku jest oscylacyjny (overreaction
+  + korekta) czy monotoniczny (trwała przecena). Wynik w `close_ringdown`
+  zwracanym przez `TIMDRFinanceFusion.analyze()`. **Nieprzetestowane
+  predykcyjnie w tym repo** — patrz "Wyniki, bez owijania w bawełnę" niżej.
+- `test_timdr_core_finance.py` — 29 testów jednostkowych (w tym integracja
+  `ringdown_events()`/`close_ringdown`).
+- `test_ringdown.py` — 12 testów `ringdown_resonance()` (walidacja na
+  syntetycznym tłumionym oscylatorze o znanej częstotliwości/tłumieniu —
+  port 1:1 z `jbackk-lang/universal-state-analyzer`, `analizator-gieldowy-v3`
+  i `TIMDR-Grid-Monitor`, gdzie ta sama funkcja jest już zweryfikowana i
+  udokumentowana pełną historią znalezionych i naprawionych błędów).
+  `pytest -q` (41/41 łącznie z powyższym).
 - `backtest_finance.py` / `backtest_gold.py` — główny backtest (BTC / złoto):
   prognoza zmienności (6h), prognoza kierunku (6h), kontrole
   `anomalies()`/`rhythm()`. Identyczna logika, inne dane wejściowe.
@@ -70,6 +83,18 @@ drugim końcu zjada każdy łatwy wzorzec).
 
 Czyli: gotowej strategii tu nie ma, i drugi instrument to potwierdził —
 "ciekawy trop" z BTC nie przeżył konfrontacji z niezależnymi danymi.
+
+**Nowy sygnał, jeszcze nie przetestowany (`ringdown.py`):** dla skoków
+ceny (`defekt()`) sprawdza, czy powrót jest oscylacyjny czy monotoniczny
+(patrz opis w "Pliki"). Sama funkcja jest zweryfikowana numerycznie na
+syntetykach (znana częstotliwość/tłumienie odzyskane poprawnie — te same
+testy co w siostrzanych repo tego zestawu), ale NIE przeszła tu
+kauzalnego backtestu jak reszta sygnałów w tym pliku — nie wiadomo, czy
+"oscylacyjny ringdown" cokolwiek mówi o przyszłej cenie, czy jest tak
+samo szumem jak reversal na 12h, który nie przetrwał replikacji na
+złocie. Traktuj `close_ringdown` jako opisowy sygnał diagnostyczny (co
+się stało po skoku), nie jako trop inwestycyjny, dopóki ktoś nie
+przepuści go przez `backtest_finance_extended.py`-owy rygor.
 
 ## A ropa?
 

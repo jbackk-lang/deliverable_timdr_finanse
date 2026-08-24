@@ -175,6 +175,79 @@ def test_analyze_pelny_pipeline_nie_crashuje():
     assert np.isfinite(result['sigma']).all()
 
 
+# ---------------------------------------------------------------
+# ringdown_events()/close_ringdown: rezonans w sensie FIZYCZNYM po
+# skokach ceny (defekt_idx) - NIE to samo co rezonans() (licznik
+# koincydencji, patrz test_rezonans_wymaga_wielu_parametrow wyzej).
+# ---------------------------------------------------------------
+
+def test_ringdown_events_pusta_lista_gdy_brak_zdarzen():
+    t = np.arange(50, dtype=float) * 3600
+    s = np.full(50, 60000.0)
+    out = core.ringdown_events(t, s, [], pre_event_window=10)
+    assert out == []
+
+
+def test_ringdown_events_grupuje_sasiadujace_indeksy_w_jeden_blok():
+    """Kilka kolejnych barow tego samego skoku (np. defekt() zaflagowal
+    3 sasiadujace indeksy) nie powinno dawac wielu nakladajacych sie
+    analiz tego samego zdarzenia."""
+    n = 60
+    t = np.arange(n, dtype=float) * 3600
+    s = np.full(n, 60000.0)
+    s[30:] = 60500.0
+    out = core.ringdown_events(t, s, [30, 31, 32], pre_event_window=20)
+    assert len(out) == 1
+    assert out[0]["event_idx"] == 30
+
+
+def test_ringdown_events_pomija_zdarzenie_na_indeksie_zero():
+    n = 30
+    t = np.arange(n, dtype=float) * 3600
+    s = np.full(n, 60000.0)
+    out = core.ringdown_events(t, s, [0, 15], pre_event_window=10)
+    assert all(r["event_idx"] != 0 for r in out)
+
+
+def test_analyze_ma_zawsze_close_ringdown():
+    rng = np.random.default_rng(2)
+    n = 200
+    t = np.arange(n, dtype=float) * 3600
+    close = 60000 + np.cumsum(rng.normal(0, 50, n))
+    open_ = close - rng.normal(0, 20, n)
+    high = np.maximum(open_, close) + np.abs(rng.normal(0, 10, n))
+    low = np.minimum(open_, close) - np.abs(rng.normal(0, 10, n))
+    volume = np.abs(rng.normal(20, 5, n))
+
+    fusion = TIMDRFinanceFusion()
+    result = fusion.analyze(t, open_, high, low, close, volume)
+    assert 'close_ringdown' in result
+    assert isinstance(result['close_ringdown'], list)
+
+
+def test_analyze_wykrywa_oscylacyjny_powrot_po_skoku_ceny():
+    """Skonstruowana cena: spokojny okres, potem skok i tlumione
+    'dzwonienie' z powrotem w strone poziomu sprzed skoku - defekt() musi
+    zlapac skok, a ringdown dla tego zdarzenia musi wyjsc is_oscillatory=True."""
+    n = 400
+    rng = np.random.default_rng(9)
+    close = 60000 + rng.normal(0, 5, n)
+    event_idx = 150
+    t = np.arange(n, dtype=float) * 3600
+    post = (t[event_idx:] - t[event_idx])
+    close[event_idx:] = 60000.0 + 800.0 * np.exp(-post / (10 * 3600.0)) * np.cos(2 * np.pi * post / (6 * 3600.0))
+    close[event_idx:] += rng.normal(0, 5, n - event_idx)
+    open_ = close.copy()
+    high = close + 5.0
+    low = close - 5.0
+    volume = np.full(n, 20.0)
+
+    fusion = TIMDRFinanceFusion()
+    result = fusion.analyze(t, open_, high, low, close, volume)
+    assert len(result['close_ringdown']) >= 1
+    assert any(r['is_oscillatory'] for r in result['close_ringdown'])
+
+
 if __name__ == '__main__':
     import sys
     sys.exit(pytest.main([__file__, '-v']))

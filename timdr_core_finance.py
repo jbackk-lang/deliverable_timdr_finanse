@@ -35,6 +35,8 @@ zmienności dla sigma) NA REALNYCH DANYCH — patrz `backtest_finance.py`.
 
 import numpy as np
 
+from ringdown import ringdown_resonance
+
 
 class TIMDR_FinanceCore:
     def __init__(self, mad_scale=1.4826):
@@ -242,6 +244,45 @@ class TIMDR_FinanceCore:
         idx = np.where(counts >= min_count)[0]
         return idx, counts
 
+    # ------------------------------------------------------------------
+    # RINGDOWN — rezonans w SENSIE FIZYCZNYM (nie licznik koincydencji jak
+    # rezonans() wyzej): czy powrot serii po zdarzeniu (np. z defekt()) do
+    # poziomu odniesienia jest oscylacyjny czy monotoniczny. Patrz
+    # ringdown.py po pelne uzasadnienie metody i wazne zastrzezenie o
+    # braku testu predykcyjnego.
+    # ------------------------------------------------------------------
+    @staticmethod
+    def ringdown_events(t, s, event_indices, pre_event_window=10, max_lookahead=None):
+        """Woła ringdown_resonance() dla każdego indeksu w `event_indices`
+        (np. defekt_idx z TIMDRFinanceFusion.analyze()). Grupuje SĄSIADUJĄCE
+        indeksy w bloki i liczy ringdown od POCZĄTKU każdego bloku (kilka
+        kolejnych barów tego samego skoku nie powinno dawać wielu
+        nakładających się analiz tego samego zdarzenia). Pomija zdarzenia
+        na indeksie 0 (brak historii przed nimi do oszacowania szumu).
+
+        Zwraca listę dictów: {"event_idx": int, **ringdown_resonance(...)}.
+        """
+        idx_list = sorted(set(int(i) for i in event_indices))
+        if not idx_list:
+            return []
+        blocks = [idx_list[0]]
+        prev = idx_list[0]
+        for i in idx_list[1:]:
+            if i != prev + 1:
+                blocks.append(i)
+            prev = i
+        results = []
+        for event_idx in blocks:
+            if event_idx == 0:
+                continue
+            res = ringdown_resonance(
+                t, s, event_idx,
+                pre_event_window=min(event_idx, pre_event_window),
+                max_lookahead=max_lookahead,
+            )
+            results.append({"event_idx": event_idx, **res})
+        return results
+
 
 class TIMDRFinanceFusion:
     """Wysokopoziomowy pipeline: surowe OHLCV -> mapa ryzyka.
@@ -278,6 +319,18 @@ class TIMDRFinanceFusion:
 
         periods, rhythm_score = core.rhythm(delta, max_lag=48, power_thresh=0.4)
 
+        # Rezonans w sensie fizycznym po skokach ceny (patrz ringdown.py) -
+        # dla kazdego bloku zdarzen z defekt(), czy powrot ceny w strone
+        # poziomu sprzed skoku jest oscylacyjny (overreaction + korekta)
+        # czy monotoniczny (trwala przecena). pre_event_window=20
+        # dopasowane do typowego okna analiz w tym repo; max_lookahead=40
+        # (2x to okno) zeby nie zlapac zupelnie innego, pozniejszego skoku
+        # jako czesc tego samego "powrotu". Wartosci nieskalibrowane na
+        # realnych danych - patrz Ograniczenia w README.md.
+        close_ringdown = core.ringdown_events(
+            t, close, defekt_idx, pre_event_window=20, max_lookahead=40,
+        )
+
         return dict(
             sigma=sigma, delta=delta, spread=spread,
             flow_sigma=flow_sigma, twist_idx=twist_idx, twist_strength=twist_strength,
@@ -285,4 +338,5 @@ class TIMDRFinanceFusion:
             anomaly_sigma_idx=an_sigma_idx, anomaly_delta_idx=an_delta_idx,
             defekt_idx=defekt_idx, rezonans_idx=rez_idx, rezonans_counts=rez_counts,
             rhythm_periods=periods, rhythm_score=rhythm_score,
+            close_ringdown=close_ringdown,
         )
