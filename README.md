@@ -32,6 +32,22 @@ drugim końcu zjada każdy łatwy wzorzec).
   i `TIMDR-Grid-Monitor`, gdzie ta sama funkcja jest już zweryfikowana i
   udokumentowana pełną historią znalezionych i naprawionych błędów).
   `pytest -q` (41/41 łącznie z powyższym).
+- `timdr_finance_trigger.py` — **czujnik sygnałowy** (NIE model, NIE
+  strategia inwestycyjna): dispatcher nad `TIMDRFinanceFusion.analyze()`,
+  mówi który typ zdarzenia się odpalił i gdzie — `RESONANCE` (>=3
+  parametry anomalne naraz) > `STRUCTURE` (twist — załamanie trendu
+  zmienności) > `DEFEKT` (nagły skok ceny) > `SCALE` (pojedyncza anomalia)
+  > `NONE`. Sam nie liczy statystyki, tylko woła już przetestowany
+  pipeline. Wpięty do `backtest_finance.py` (TEST 4, na końcu). Testy:
+  `test_timdr_finance_trigger.py` (49/49 łącznie z powyższymi).
+
+  ```python
+  from timdr_finance_trigger import TIMDRFinanceTrigger
+
+  trigger = TIMDRFinanceTrigger()
+  result = trigger.analyze(t, open_, high, low, close, volume)
+  print(result.trigger_type, result.location, result.message)
+  ```
 - `backtest_finance.py` / `backtest_gold.py` — główny backtest (BTC / złoto):
   prognoza zmienności (6h), prognoza kierunku (6h), kontrole
   `anomalies()`/`rhythm()`. Identyczna logika, inne dane wejściowe.

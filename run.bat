@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
 echo ============================================================
 echo TIMDR-Finanse -- pelny przebieg: testy + backtesty (BTC+zloto) + wykresy
@@ -28,7 +29,9 @@ python -m pip install numpy matplotlib scipy pytest -q
 
 echo.
 echo [3/8] Uruchamiam testy jednostkowe...
-python -m pytest test_timdr_core_finance.py -q
+rem --- basetemp we wlasnym folderze projektu omija zablokowany/uszkodzony
+rem     C:\Users\<user>\AppData\Local\Temp\pytest-of-<user> na Windows ---
+python -m pytest test_timdr_core_finance.py -q --basetemp=".pytest_tmp"
 if errorlevel 1 (
     echo [UWAGA] Niektore testy nie przeszly -- wyniki ponizej moga byc niepewne.
 )

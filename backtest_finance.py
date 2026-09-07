@@ -191,3 +191,18 @@ print(
 if periods:
     near_24 = [p for p in periods if 20 <= p <= 28]
     print(f"Okresy w poblizu 24h: {near_24}")
+
+# ============================================================
+# TEST 4: TIMDRFinanceTrigger - czujnik sygnalowy (NIE predykcja ceny -
+# patrz zastrzezenia w timdr_finance_trigger.py) na calej realnej serii
+# ============================================================
+print("\n=== TEST 4: TIMDRFinanceTrigger na calej serii BTC/USD ===")
+from timdr_finance_trigger import TIMDRFinanceTrigger
+
+trigger = TIMDRFinanceTrigger()
+trig_result = trigger.analyze(t_h, open_, high, low, close, volume)
+print(f"triggered={trig_result.triggered}  type={trig_result.trigger_type.value}  "
+      f"location={trig_result.location}")
+print(f"  {trig_result.message}")
+if trig_result.location is not None:
+    print(f"  t={t_h[trig_result.location]:.1f}h  close={close[trig_result.location]:.0f}")
