@@ -66,34 +66,88 @@ import pandas as pd
 
 DEFAULT_BASKET = ["SP500", "DCOILWTICO", "DTWEXBGS", "VIXCLS"]
 
+# Koszyk PRE-REJESTROWANY jako nastepny test (2026-09-14), po tym jak
+# DEFAULT_BASKET dal wynik ujemny/mieszany: mean_pairwise_correlation byla
+# UJEMNA przez caly 5-letni okres (srednia -0.137, nigdy >0.4), co
+# zdiagnozowano jako efekt skladu koszyka (VIX jest ustrukturalnie silnie
+# ujemnie skorelowany z SP500, ~-0.7 do -0.85 dla zwrotow dziennych), nie
+# porazke mechanizmu. Ten koszyk usuwa VIX, zamiast tego 3 glowne indeksy
+# gieldowe USA (SP500/DJIA/NASDAQCOM - zweryfikowane jako realne, dzienne,
+# FRED) + ropa WTI - wszystkie oczekiwane jako WSPOLKIERUNKOWE (rosna/spadaja
+# razem), zgodnie z zalozeniem Longin & Solnik (2001).
+EQUITY_ONLY_BASKET = ["SP500", "DJIA", "NASDAQCOM", "DCOILWTICO"]
+
+# Znane, niezalezne od tego eksperymentu zdarzenie odniesienia: krach COVID-19
+# (szczyt paniki ok. 2020-02-20 do 2020-04-15, dno DJIA 2020-03-23=18591.93,
+# zweryfikowane recznie z surowych danych FRED). Pre-rejestrowane PRZED
+# uruchomieniem na tym koszyku:
+#   H1: mean_pairwise_correlation(t) > 0 w >=95% prawidlowych probek w calym
+#       oknie (naprawa efektu znaku z VIX-koszyka, gdzie bylo ~0%).
+#   H2: w oknie KNOWN_CRISIS_WINDOW korelacja lokalna jest wyzsza od mediany
+#       calej probki, ORAZ anomalies()/twist() na mean_pairwise_correlation
+#       flaguje >=1 punkt w tym oknie.
+# Progi NIE beda zmieniane po zobaczeniu wyniku na tym koszyku.
+KNOWN_CRISIS_WINDOW = ("2020-02-20", "2020-04-15")
+
 
 def fetch_fred_series(series_id, start, end):
     """Pobiera jedna serie FRED. Probuje pandas_datareader (zalecane,
     `pip install pandas-datareader` - najbardziej niezawodne, wysyla
     poprawne naglowki HTTP), z fallbackiem na bezposrednie zapytanie do
-    fredgraph.csv przez `requests` (NIE przez pd.read_csv(url) bezposrednio
-    - FRED bez naglowka User-Agent potrafi zwrocic cos innego niz czyste
-    CSV, co psuje parsowanie kolumn), jesli pandas_datareader nie jest
-    zainstalowany."""
+    fredgraph.csv przez stdlib `urllib.request` (NIE przez `requests` -
+    na jednej z maszyn testowych `requests`/nowszy `urllib3` z backendem
+    HTTP/2 ("hface") dostawal `ProtocolError: Stream 1 was reset by
+    remote peer` przy kazdej probie polaczenia z fred.stlouisfed.org;
+    stdlib urllib uzywa zwyklego HTTP/1.1 i tego problemu nie ma), z 3
+    probami i odczekaniem miedzy nimi na wypadek chwilowego zerwania
+    polaczenia, jesli pandas_datareader nie jest zainstalowany."""
     try:
         from pandas_datareader import data as pdr
         return pdr.DataReader(series_id, "fred", start, end)[series_id]
     except ImportError:
         import io
-        import requests
+        import time
+        import urllib.error
+        import urllib.request
 
         url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; timdr-finance-field/1.0)"}
-        resp = requests.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 (compatible; timdr-finance-field/1.0)"}
+        )
+
+        text = None
+        last_exc = None
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    text = resp.read().decode("utf-8")
+                break
+            except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                if attempt < 2:
+                    time.sleep(2)
+
+        if text is None:
+            raise RuntimeError(
+                f"Nie udalo sie pobrac {series_id} z FRED po 3 probach "
+                f"(ostatni blad: {last_exc!r}). To wyglada na chwilowy "
+                f"problem sieciowy/serwera (nie blad w kodzie) - sprobuj "
+                f"ponownie za chwile. Jesli problem sie powtarza stale, "
+                f"zainstaluj `pip install pandas-datareader` jako "
+                f"alternatywna sciezke pobierania."
+            ) from last_exc
 
         try:
-            df = pd.read_csv(io.StringIO(resp.text), parse_dates=["DATE"], index_col="DATE")
+            df = pd.read_csv(
+                io.StringIO(text),
+                parse_dates=["observation_date"],
+                index_col="observation_date",
+            )
         except (ValueError, KeyError) as exc:
             raise RuntimeError(
                 f"Nie udalo sie sparsowac CSV dla {series_id}. "
                 f"Pierwsze 300 znakow odpowiedzi serwera (do diagnozy):\n"
-                f"{resp.text[:300]!r}\n\n"
+                f"{text[:300]!r}\n\n"
                 f"Najprostsze rozwiazanie: `pip install pandas-datareader` "
                 f"i uruchom ponownie - ta biblioteka radzi sobie z tym "
                 f"niezawodnie zamiast recznego pobierania CSV."
@@ -120,8 +174,8 @@ def ingest_fred_basket(basket=None, years=5):
     n_before = len(df)
     df = df.dropna()
     n_after = len(df)
-    print(f"Probek przed/po usunieciu brakow: {n_before} -> {n_after} "
-          f"({100*(n_before-n_after)/max(n_before,1):.1f}% usuniete)")
+    pct_removed = 100 * (n_before - n_after) / max(n_before, 1)
+    print(f"Probek przed/po usunieciu brakow: {n_before} -> {n_after} ({pct_removed:.1f}% usuniete)")
     return df
 
 
@@ -147,18 +201,49 @@ def run_real_validation(basket=None, years=5, window=20):
     idx_tw, z_tw = fusion.twist(t_ret, corr)
     tr_sl, tr_z = fusion.trend(t_ret, corr, window=window)
 
-    print(f"\nanomalies() na mean_pairwise_correlation: {len(idx_an)}/{len(corr)} "
-          f"(max z={np.nanmax(z_an) if len(z_an) else float('nan'):.2f})")
-    print(f"twist(): {len(idx_tw)}/{len(corr)} (max z={np.nanmax(z_tw) if len(z_tw) else float('nan'):.2f})")
+    max_z_an = np.nanmax(z_an) if len(z_an) else float("nan")
+    max_z_tw = np.nanmax(z_tw) if len(z_tw) else float("nan")
+    print(f"\nanomalies() na mean_pairwise_correlation: {len(idx_an)}/{len(corr)} (max z={max_z_an:.2f})")
+    print(f"twist(): {len(idx_tw)}/{len(corr)} (max z={max_z_tw:.2f})")
     print(f"trend max|z|: {np.nanmax(np.abs(tr_z)):.2f}")
 
+    dates_ret = df.index[1:]
+
     if len(idx_an):
-        print("\nDaty z anomalnym mean_pairwise_correlation (indeksy w koszyku dropna, nie kalendarzowe):")
-        dates = df.index[1:][idx_an[:20]]
-        for d in dates:
+        print("\nDaty z anomalnym mean_pairwise_correlation (anomalies()):")
+        for d in dates_ret[idx_an[:20]]:
             print(f"  {d.date()}")
 
-    return {"df": df, "corr": corr, "absorption_ratio": ar, "anomaly_idx": idx_an}
+    if len(idx_tw):
+        print("\nDaty z twist() na mean_pairwise_correlation:")
+        for d in dates_ret[idx_tw[:20]]:
+            print(f"  {d.date()}")
+
+    # H1 (pre-rejestrowane): odsetek prawidlowych probek z korelacja > 0.
+    pct_positive = 100 * np.mean(valid_corr > 0)
+    print(f"\nH1: odsetek probek mean_pairwise_correlation > 0: {pct_positive:.1f}% "
+          f"(prog pre-rejestrowany: >=95%)")
+
+    # H2 (pre-rejestrowane): zachowanie w oknie znanego kryzysu (COVID-19).
+    start_str, end_str = KNOWN_CRISIS_WINDOW
+    in_window = np.asarray((dates_ret >= pd.Timestamp(start_str)) & (dates_ret <= pd.Timestamp(end_str)))
+    if in_window.any():
+        window_corr = corr[in_window]
+        window_corr = window_corr[np.isfinite(window_corr)]
+        global_median = np.nanmedian(valid_corr)
+        window_median = np.nanmedian(window_corr) if window_corr.size else float("nan")
+        window_idx = np.where(in_window)[0]
+        an_hit = any(i in window_idx for i in idx_an)
+        tw_hit = any(i in window_idx for i in idx_tw)
+        print(f"\nH2: okno znanego kryzysu (COVID-19, {start_str} do {end_str}):")
+        print(f"  mediana korelacji w oknie={window_median:.3f} vs mediana calej probki={global_median:.3f}")
+        print(f"  anomalies() trafia w okno: {an_hit}, twist() trafia w okno: {tw_hit}")
+    else:
+        print(f"\nH2: okno znanego kryzysu ({start_str} do {end_str}) POZA zakresem pobranych "
+              f"danych (df.index: {dates_ret.min().date()} do {dates_ret.max().date()}) - "
+              f"uzyj wiekszego --years, zeby je objac.")
+
+    return {"df": df, "corr": corr, "absorption_ratio": ar, "anomaly_idx": idx_an, "twist_idx": idx_tw}
 
 
 if __name__ == "__main__":

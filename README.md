@@ -185,11 +185,113 @@ osobna hipoteza. Wymaga koszyka ≥4-5 aktywów i danych dziennych/
 wieloletnich — istniejące dane w tym repo (BTC/złoto, 30 dni godzinowo)
 są za małe; `real_fred_field_test.py` używa zamiast tego koszyka FRED
 (SP500/DCOILWTICO/DTWEXBGS/VIXCLS, wszystkie zweryfikowane jako realnie
-istniejące) — **nieuruchomiony na pełnej realnej historii w tym
-środowisku** (sam mechanizm dostępu do FRED zweryfikowany, ale pełne
-pobranie 4 serii × kilka lat przez narzędzie do stron nie zostało tu
-wykonane ze względu na koszt) — uruchom `python real_fred_field_test.py`
-u siebie.
+istniejące).
+
+**Wynik na realnych danych FRED (2026-09-14, uruchomione przez użytkownika,
+domyślny koszyk, 5 lat, okno=20):** 1303→1237 próbek po dropna (5.1%
+usunięte, okno ~2021-09 do 2026-09 — **NIE obejmuje krachu COVID
+2020-03**, bo to domyślne `--years 5` liczone od dziś, nie stała data;
+żeby sprawdzić względem znanego kryzysu trzeba `--years 6` lub więcej i
+własnoręcznie zlokalizować marzec 2020 w wypisanych datach).
+
+- `mean_pairwise_correlation`: min=-0.272, średnia=-0.137, max=0.018 —
+  **przez cały okres UJEMNA, nigdy nie zbliża się do progu 0.4 z testu
+  syntetycznego.** To NIE jest porażka mechanizmu — to efekt składu
+  koszyka: VIX jest ustrukturalnie silnie ujemnie skorelowany z SP500
+  (dobrze udokumentowane ok. -0.7 do -0.85 dla zwrotów dziennych),
+  więc ciągnie średnią korelację parami w dół niezależnie od reżimu
+  rynku. Literatura Longin & Solnik (2001) dotyczy koszyków
+  JEDNOKIERUNKOWYCH (międzynarodowe indeksy akcji, wszystkie zwykle
+  dodatnio skorelowane) — koszyk mieszający VIX (celowo odwrotny
+  instrument) nie jest czystym testem tej hipotezy. Uczciwy wniosek:
+  ten konkretny koszyk nie nadaje się do testowania "korelacje rosną w
+  kryzysie" wprost; potrzebny osobny, pre-rejestrowany przebieg na
+  koszyku samych aktywów tego samego znaku (np. same indeksy
+  giełdowe/surowce, bez VIX).
+- `absorption_ratio`: min=0.501, średnia=0.879, max=0.995 — **stale
+  wysoki, nasycony blisko sufitu przez cały okres.** Zgodne z
+  udokumentowanym już wcześniej w tym pliku zastrzeżeniem: przy
+  koszyku <5 aktywów pierwsza składowa PCA wyjaśnia dużo wariancji
+  niemal zawsze, niezależnie od realnego sprzężenia — więc ten sygnał,
+  w tej konfiguracji, nie różnicuje kryzys/spokój, co samo w sobie
+  potwierdza (a nie zaprzecza) wcześniej spisane ograniczenie.
+- `anomalies()` na korelacji: 0/1236 (max z=2.46, poniżej progu 3.0) —
+  zero wykrytych anomalii. `twist()`: 25/1236 (~2%, max z=6.68) — jakaś
+  struktura w drugiej pochodnej jest, ale bez odniesienia do znanego
+  wydarzenia (poza zasięgiem domyślnego okna) nie można stwierdzić, czy
+  to sygnał czy szum.
+
+**Podsumowanie tego przebiegu:** to jest uczciwy wynik MIESZANY/negatywny
+dla hipotezy w POSTACI PRZETESTOWANEJ na tym koszyku — nie potwierdza
+"korelacje rosną w kryzysie" na tych 4 seriach, ale przyczyna jest
+zdiagnozowana (skład koszyka, nie błąd mechanizmu) i sugeruje konkretny,
+osobny następny test (koszyk jednokierunkowy) zamiast retuningu progów
+pod ten wynik.
+
+### Test nr 2 (pre-rejestrowany): koszyk bez VIX, referencja COVID-19
+
+Po powyższym wyniku pre-rejestrowano NOWY, osobny test — koszyk
+`SP500/DJIA/NASDAQCOM/DCOILWTICO` (3 główne indeksy giełdowe USA + ropa
+WTI, wszystkie zweryfikowane jako realne, dzienne serie FRED, bez VIX),
+`--years 7`, z dwoma progami ustalonymi PRZED uruchomieniem:
+
+- **H1:** `mean_pairwise_correlation > 0` w ≥95% próbek (naprawa efektu
+  znaku z koszyka z VIX).
+- **H2:** w oknie znanego, niezależnego zdarzenia (krach COVID-19,
+  2020-02-20 do 2020-04-15, dno DJIA 2020-03-23=18591.93) korelacja
+  lokalna wyższa od mediany całej próby, ORAZ `anomalies()`/`twist()`
+  łapie tam ≥1 punkt.
+
+Po drodze wyszły dwa realne błędy techniczne, oba naprawione:
+`requests`/nowszy `urllib3` (backend HTTP/2 "hface") dostawał `Stream 1
+was reset by remote peer` przy każdym połączeniu z FRED na maszynie
+użytkownika — przełączono pobieranie na stdlib `urllib.request` (HTTP/1.1)
+z 3 próbami; oraz cena ropy WTI (`DCOILWTICO`) była realnie UJEMNA
+2020-04-20 (udokumentowane historyczne zdarzenie, słynne załamanie
+kontraktów terminowych w trakcie COVID-19) — `log(cena≤0)=NaN` wysadzało
+macierz kowariancji w `absorption_ratio()`; naprawiono tak, że okna
+zawierające niefinitowy zwrot są pomijane (`NaN` w wyniku), nie
+crashują ani nie są "naprawiane" sztucznie.
+
+**Wynik (2026-09-14, użytkownik, `--years 7`, okno=20):** 1825→1746
+próbek po dropna (4.3% usunięte).
+
+- `mean_pairwise_correlation`: min=0.023, średnia=0.472, max=0.916 —
+  **zawsze dodatnia.** `absorption_ratio`: min=0.459, średnia=0.714,
+  max=0.979 — stale wysoki (zgodnie z wcześniej udokumentowanym
+  zastrzeżeniem o małym koszyku z prawie-duplikatami indeksów USA).
+- **H1: SPEŁNIONE.** 100.0% próbek z korelacją dodatnią (próg: ≥95%).
+  Potwierdza diagnozę z testu nr 1 — usunięcie VIX naprawiło efekt
+  znaku całkowicie.
+- **H2: CZĘŚCIOWO spełnione — uczciwie NIE w pełni.** Mediana korelacji
+  w oknie COVID = 0.725 vs mediana całej próby = 0.476 (wzrost o ~52%,
+  kierunek i skala zgodne z Longin & Solnik) — ale `anomalies()` (0
+  trafień w całej 7-letniej próbie, max z=2.45, poniżej progu 3.0) i
+  `twist()` NIE złapały tego konkretnego okna (oba `False`). H2 było
+  pre-rejestrowane jako KONIUNKCJA obu warunków, więc formalnie to
+  NIEPOWODZENIE tej części hipotezy, mimo że opisowe porównanie median
+  wypadło zgodnie z oczekiwaniem.
+- Wyjaśnienie (nie retuning progów, diagnoza post-hoc): przy koszyku
+  zdominowanym przez 3 silnie skorelowane indeksy giełdowe USA,
+  korelacja jest wysoka i zmienna PRZEZ CAŁĄ 7-letnią próbę (mediana
+  0.476, zakres 0.02–0.92), więc skok do ~0.7-0.9 w trakcie COVID nie
+  jest ekstremalny względem MAD tej całej serii — detektory
+  `anomalies()`/`twist()` (kalibrowane progiem z idealizowanego testu
+  syntetycznego, gdzie linia bazowa była bliska 0) nie są dobrze
+  dopasowane do koszyka z ustrukturalnie wysoką linią bazową korelacji.
+  `twist()` złapał za to 21 innych dat w tym 7-letnim oknie (m.in.
+  2020-06-09, 2022-06-08, 2022-11-02, 2023-03-01, 2025-10-08/09/10/14) —
+  żadna z nich nie została tu zweryfikowana względem znanych wydarzeń
+  rynkowych, to możliwy następny krok, nie zrobiony w tym przebiegu.
+
+**Podsumowanie testu nr 2:** mieszany, uczciwie zaraportowany wynik.
+Mechanizm SAM SYGNAŁ (poziom korelacji) reaguje na znany kryzys we
+właściwym kierunku i ze znaczną, niebanalną wielkością efektu — ale
+operator detekcji TIMDR (`anomalies()`/`twist()` z progami z testu
+syntetycznego) nie jest skalibrowany pod koszyki z wysoką linią bazową
+korelacji typową dla realnych, silnie skorelowanych indeksów giełdowych.
+To rozróżnienie "mechanizm częściowo działa" vs "mechanizm jest
+skalibrowany" — nie powód do retuningu progów pod ten wynik.
 
 ## Jak odpalić
 

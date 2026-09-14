@@ -75,8 +75,18 @@ def compute_returns(prices):
 
 def mean_pairwise_correlation(returns, window=20):
     """Srednia korelacja parami (poza diagonala) w oknie kroczacym `window`
-    dni. Zwraca tablice dlugosci n_dni (NaN dla pierwszych window-1 probek).
-    returns: (n_dni, n_aktywow)."""
+    dni. Zwraca tablice dlugosci n_dni (NaN dla pierwszych window-1 probek,
+    oraz dla kazdego okna zawierajacego niefinitowy - NaN/inf - zwrot).
+    returns: (n_dni, n_aktywow).
+
+    Uwaga (2026-09-14, real_fred_field_test.py): niefinitowy zwrot moze
+    powstac nie tylko z brakow danych, ale i z REALNEGO zdarzenia - np.
+    cena ropy WTI (DCOILWTICO) na FRED byla UJEMNA 2020-04-20 (historyczny,
+    udokumentowany dzien zalamania rynku kontraktow terminowych na rope w
+    trakcie COVID-19), co daje log(cena<=0)=NaN w compute_returns() dla
+    zwrotow po obu stronach tej daty. Okna kroczace obejmujace taki zwrot
+    sa tu celowo pomijane (NaN w wyniku), a nie ukrywane/interpolowane -
+    korelacja/PCA na sztucznie \"naprawionej\" cenie bylaby nieuczciwa."""
     returns = np.asarray(returns, float)
     n, k = returns.shape
     if k < 2:
@@ -84,6 +94,8 @@ def mean_pairwise_correlation(returns, window=20):
     out = np.full(n, np.nan)
     for i in range(window - 1, n):
         window_data = returns[i - window + 1:i + 1]
+        if not np.all(np.isfinite(window_data)):
+            continue
         corr = np.corrcoef(window_data, rowvar=False)
         mask = ~np.eye(k, dtype=bool)
         out[i] = np.nanmean(corr[mask])
@@ -94,7 +106,9 @@ def absorption_ratio(returns, window=20, n_components=1):
     """Udzial wariancji wyjasniany przez pierwsze n_components skladowych
     PCA macierzy kowariancji zwrotow w oknie kroczacym `window` dni
     (Kritzman i in. 2011). Zwraca tablice dlugosci n_dni (NaN dla
-    pierwszych window-1 probek)."""
+    pierwszych window-1 probek, oraz dla kazdego okna zawierajacego
+    niefinitowy zwrot - patrz uwaga w mean_pairwise_correlation() o
+    ujemnej cenie ropy WTI 2020-04-20)."""
     returns = np.asarray(returns, float)
     n, k = returns.shape
     if k < 2:
@@ -103,6 +117,8 @@ def absorption_ratio(returns, window=20, n_components=1):
     out = np.full(n, np.nan)
     for i in range(window - 1, n):
         window_data = returns[i - window + 1:i + 1]
+        if not np.all(np.isfinite(window_data)):
+            continue
         cov = np.cov(window_data, rowvar=False)
         eigvals = np.linalg.eigvalsh(cov)
         eigvals = np.sort(eigvals)[::-1]
