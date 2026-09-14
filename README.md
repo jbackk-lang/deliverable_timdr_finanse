@@ -48,6 +48,15 @@ drugim końcu zjada każdy łatwy wzorzec).
   result = trigger.analyze(t, open_, high, low, close, volume)
   print(result.trigger_type, result.location, result.message)
   ```
+- `timdr_finance_field.py` — rozszerzenie: pole korelacji koszyka aktywów
+  (nie pojedynczy instrument) — `mean_pairwise_correlation()`/
+  `absorption_ratio()` (oba z literatury) + operator TIMDR na tym
+  sygnale. Patrz sekcja "Rozszerzenie: pole korelacji" niżej. Testy:
+  `test_timdr_finance_field.py` (6/6, syntetyczne kontrole pozytywna/
+  negatywna).
+- `real_fred_field_test.py` — walidacja `timdr_finance_field.py` na
+  realnym koszyku FRED (SP500/ropa/dolar/VIX) — do uruchomienia przez
+  usera, patrz zastrzeżenie w nagłówku pliku.
 - `backtest_finance.py` / `backtest_gold.py` — główny backtest (BTC / złoto):
   prognoza zmienności (6h), prognoza kierunku (6h), kontrole
   `anomalies()`/`rhythm()`. Identyczna logika, inne dane wejściowe.
@@ -129,6 +138,58 @@ punkt na miesiąc to za mało, żeby policzyć cokolwiek na poziomie
 godzinowym. Szczegóły i zastrzeżenia w `RAPORT_TIMDR_Finanse.md`. Jeśli
 masz gdzieś dostęp do godzinowych/dziennych danych ropy z tego okresu, wrzuć
 je, a przepuszczę je przez ten sam pipeline.
+
+**Korekta powyższego ustalenia (2026-09-14):** FRED jednak DA SIĘ ściągnąć
+— nie przez `fredgraph.csv` (to zwraca treść, której ówczesne narzędzie do
+stron nie umiało wyciągnąć jako tekst), tylko przez stronę tabeli danych
+`fred.stlouisfed.org/data/<SERIES_ID>.txt`, która zwraca te same liczby
+jako czytelną tabelę HTML. Zweryfikowano ręcznie na realnych wartościach
+S&P 500 (m.in. dołek COVID 2020-03-23 = 2237.40, zgodny ze znanym
+przebiegiem indeksu) — więc **ropa WTI dziennie (DCOILWTICO) jest
+faktycznie dostępna**, nie tylko miesięcznie z EIA. Nie pobrano tu pełnej
+serii (koszt tokenów dla wielu lat danych dziennych przez tę metodę jest
+wysoki), ale ścieżka istnieje — patrz `real_fred_field_test.py` niżej,
+gotowy do odpalenia u siebie zwykłym `pandas_datareader` (bez ograniczeń
+sandboxa, w którym to powstało).
+
+## Rozszerzenie: pole korelacji koszyka aktywów (`timdr_finance_field.py`)
+
+Odpowiedź na pytanie "czy mapowanie pola by coś zmieniło" — cała reszta
+tego repo analizuje KAŻDY instrument niezależnie (BTC osobno, złoto
+osobno); replikacja sygnału reversal z BTC na złocie nie powtórzyła się
+(patrz wyżej), co jest testem, czy ten sam KSZTAŁT WAHANIA ceny
+generalizuje się między aktywami. Ten moduł stawia inny zakład: czy
+SPRZĘŻENIE między aktywami (nie kształt pojedynczej ceny) niesie sygnał —
+koszyk jako pole, ten sam zabieg co `Synoptyk-v3` (pogoda na siatce
+geograficznej) i `TIMDR-Quantum-Lattice` (agregatowy stan siatki).
+
+Dwa sygnały polowe, oba z literatury (nie wymyślone pod TIMDR):
+`mean_pairwise_correlation()` (Longin & Solnik 2001 — korelacje rosną w
+kryzysie) i `absorption_ratio()` (Kritzman i in. 2011, miara systemowej
+kruchości przez PCA macierzy kowariancji). Oba podawane do standardowego
+operatora TIMDR (twist/trend/anomalies/fusion_score).
+
+**Testy na syntetykach (6/6, pre-rejestrowane progi):** wstrzyknięty,
+jednoznaczny reżim kryzysu (wspólny czynnik ryzyka włączany skokowo w
+oknie 300-350 z 500 dni, 8 aktywów) — kontrola pozytywna: korelacja
+średnia i absorption ratio oba rosną wielokrotnie ponad linię bazową,
+wykryte przez `anomalies()`/`twist()`. Kontrola negatywna: bez
+wstrzykniętego kryzysu, brak fałszywych alarmów. To sprawdza POPRAWNOŚĆ
+MECHANIZMU na jawnym, ostrym przypadku — nie kalibrację progów pod
+faktyczny, płynniej zmieniający się rynek.
+
+**Ograniczenia (jawnie):** to NIE jest predykcja kierunku/ceny — to
+detektor zmiany reżimu sprzężenia, zjawisko innego rodzaju niż to, co już
+testował ten repo; nie naprawia porażki reversal na BTC/złocie, to
+osobna hipoteza. Wymaga koszyka ≥4-5 aktywów i danych dziennych/
+wieloletnich — istniejące dane w tym repo (BTC/złoto, 30 dni godzinowo)
+są za małe; `real_fred_field_test.py` używa zamiast tego koszyka FRED
+(SP500/DCOILWTICO/DTWEXBGS/VIXCLS, wszystkie zweryfikowane jako realnie
+istniejące) — **nieuruchomiony na pełnej realnej historii w tym
+środowisku** (sam mechanizm dostępu do FRED zweryfikowany, ale pełne
+pobranie 4 serii × kilka lat przez narzędzie do stron nie zostało tu
+wykonane ze względu na koszt) — uruchom `python real_fred_field_test.py`
+u siebie.
 
 ## Jak odpalić
 
