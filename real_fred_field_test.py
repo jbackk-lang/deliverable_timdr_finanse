@@ -31,8 +31,15 @@ serii na fred.stlouisfed.org.
 ## Instalacja
 
 ```bash
-pip install pandas-datareader pandas numpy
+pip install pandas-datareader pandas numpy requests
 ```
+
+`pandas-datareader` jest ZALECANE (obsługuje FRED niezawodnie, poprawne
+nagłówki HTTP). Jeśli go nie masz, skrypt spróbuje fallbacku przez
+`requests` + `fredgraph.csv` — mniej niezawodny (FRED bez nagłówka
+User-Agent bywa kapryśny co do formatu odpowiedzi), ale też powinien
+zadziałać. Jeśli fallback rzuci błąd parsowania, zainstaluj
+`pandas-datareader` — to najprostsza naprawa.
 
 ## Użycie
 
@@ -61,15 +68,37 @@ DEFAULT_BASKET = ["SP500", "DCOILWTICO", "DTWEXBGS", "VIXCLS"]
 
 
 def fetch_fred_series(series_id, start, end):
-    """Pobiera jedna serie FRED. Probuje pandas_datareader (standardowa
-    biblioteka), z fallbackiem na bezposrednie zapytanie do
-    fredgraph.csv, jesli pandas_datareader nie jest zainstalowany."""
+    """Pobiera jedna serie FRED. Probuje pandas_datareader (zalecane,
+    `pip install pandas-datareader` - najbardziej niezawodne, wysyla
+    poprawne naglowki HTTP), z fallbackiem na bezposrednie zapytanie do
+    fredgraph.csv przez `requests` (NIE przez pd.read_csv(url) bezposrednio
+    - FRED bez naglowka User-Agent potrafi zwrocic cos innego niz czyste
+    CSV, co psuje parsowanie kolumn), jesli pandas_datareader nie jest
+    zainstalowany."""
     try:
         from pandas_datareader import data as pdr
         return pdr.DataReader(series_id, "fred", start, end)[series_id]
     except ImportError:
+        import io
+        import requests
+
         url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
-        df = pd.read_csv(url, parse_dates=["DATE"], index_col="DATE")
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; timdr-finance-field/1.0)"}
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+
+        try:
+            df = pd.read_csv(io.StringIO(resp.text), parse_dates=["DATE"], index_col="DATE")
+        except (ValueError, KeyError) as exc:
+            raise RuntimeError(
+                f"Nie udalo sie sparsowac CSV dla {series_id}. "
+                f"Pierwsze 300 znakow odpowiedzi serwera (do diagnozy):\n"
+                f"{resp.text[:300]!r}\n\n"
+                f"Najprostsze rozwiazanie: `pip install pandas-datareader` "
+                f"i uruchom ponownie - ta biblioteka radzi sobie z tym "
+                f"niezawodnie zamiast recznego pobierania CSV."
+            ) from exc
+
         df = df[(df.index >= start) & (df.index <= end)]
         series = pd.to_numeric(df[series_id], errors="coerce")
         return series
